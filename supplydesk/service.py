@@ -38,6 +38,10 @@ class OrderService:
             raise ValueError("An order must contain at least one item.")
         lines = []
         subtotal = 0
+
+        #AI Recommendation 2: Initiates "requested_quantities" variable
+        requested_quantities = {}
+
         for item in items:
             if not isinstance(item, dict):
                 raise ValueError("Each item must contain a product_id and quantity.")
@@ -54,8 +58,17 @@ class OrderService:
             if type(quantity) is not int or quantity < MIN_QUANTITY or quantity > MAX_QUANTITY:
                 raise ValueError(f"Quantity must be an integer from {MIN_QUANTITY} to {MAX_QUANTITY}.")
 
-            if quantity > product["stock"]:
-                raise ValueError("Not enough stock for " + product["product_id"] + ".")
+
+            #AI Recommendation 2: This checks the combined requested quantity while preserving the original item lines in quotes and orders.
+            product_id = product["product_id"]
+
+            requested_quantities[product_id] = (
+                requested_quantities.get(product_id, 0) + quantity
+            )
+
+            if requested_quantities[product_id] > product["stock"]:
+                raise ValueError("Not enough stock for " + product_id + ".")
+
             line_total = product["unit_price_cents"] * quantity
             subtotal += line_total
             lines.append({
@@ -68,7 +81,7 @@ class OrderService:
 
         #Refactoring 2: Replaced magic numbers with the constants
         discount = 0
-        if customer_type == "student" and subtotal > STUDENT_DISCOUNT_MIN_CENTS:
+        if customer_type == "student" and subtotal >= STUDENT_DISCOUNT_MIN_CENTS: #AI Reccomendation 3: This corrects the student discount boundary
             discount = (subtotal * STUDENT_DISCOUNT_PERCENT + 50) // 100
         delivery = 0
         if fulfillment == "express":
@@ -128,6 +141,10 @@ class OrderService:
                 break
         if order is None:
             raise ValueError("Unknown order: " + order_id)
+        
+        #AI Recommendation 1: This change prevents inventory from being restored a second time
+        if order["status"] == "cancelled": return order
+
         for line in order["items"]:
             for product in state["catalog"]:
                 if product["product_id"] == line["product_id"]:
